@@ -2,47 +2,25 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Entry;
+use App\Environment;
 use Illuminate\Http\Request;
 
 class EnvironmentController extends Controller
 {
-    public function show(Request $request, string $project, string $branch): ?string
+    public Environment $environment;
+
+    public function __construct()
     {
-        $entries = Entry::query()
-            ->where('project', $project)
-            ->where('branch', $branch)
-            ->get();
+        $this->environment = new Environment();
+    }
 
-        if ($request->ajax()) {
-            return $entries->toJson();
-        }
-
-        $response = null;
-
-        foreach ($entries as $entry) {
-            $response .= $entry['key'] . '=' . $entry['value'] . '\n';
-        }
-
-        return $response;
+    public function show(Request $request, string $project, string $branch): string
+    {
+        return $this->environment->show($request->ajax(), $project, $branch);
     }
 
     public function save(Request $request, string $project, string $branch): void
     {
-        $text = $request->get('values');
-        $strings = explode("\n", $text);
-
-        foreach ($strings as $string) {
-            if ($string !== '') {
-                $variables = explode("=", $string, 2);
-
-                Entry::query()->insert([
-                    'key' => $variables[0],
-                    'value' => $variables[1],
-                    'project' => $project,
-                    'branch' => $branch,
-                    ]);
-            }
-        }
+        $this->environment->save($request->get('values'), $project, $branch);;
     }
 }

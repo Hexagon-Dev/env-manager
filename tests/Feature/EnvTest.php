@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Environment;
 use App\Models\Entry;
 use Tests\TestCase;
 
 class EnvTest extends TestCase
 {
+    public Environment $environment;
+
     public string $data =
         <<< HEREDOC
         APP_NAME=Laravel
@@ -30,6 +33,12 @@ class EnvTest extends TestCase
         ['LOG_DEPRECATIONS_CHANNEL' => 'null'],
         ['LOG_LEVEL' => 'debug'],
     ];
+
+    public function __construct(?string $name = null, array $data = [], $dataName = '')
+    {
+        $this->environment = new Environment();
+        parent::__construct($name, $data, $dataName);
+    }
 
     /** @test */
     public function saveEnv(): void
@@ -75,7 +84,7 @@ class EnvTest extends TestCase
             ->where('branch', 'master')
             ->delete();
 
-        $strings = explode('\n', $data);
+        $strings = explode("\n", $data);
 
         $test = null;
 
@@ -88,5 +97,75 @@ class EnvTest extends TestCase
         }
 
         self::assertEquals($test, $this->modified_data);
+    }
+
+    /** @test */
+    public function checkHasComment(): void
+    {
+        $actual = $this->environment->checkComment('test#comment');
+
+        self::assertEquals('test', $actual);
+    }
+
+    /** @test */
+    public function checkEmptyComment(): void
+    {
+        $actual = $this->environment->checkComment('#comment');
+
+        self::assertEquals('', $actual);
+    }
+
+    /** @test */
+    public function checkNoComment(): void
+    {
+        $actual = $this->environment->checkComment('test');
+
+        self::assertEquals(false, $actual);
+    }
+
+    /** @test */
+    public function checkHasQuotes(): void
+    {
+        $actual = $this->environment->checkQuotes('"test#123"');
+
+        self::assertEquals('test#123', $actual);
+    }
+
+    /** @test */
+    public function checkEmptyQuotes(): void
+    {
+        $actual = $this->environment->checkQuotes('""');
+
+        self::assertEquals('', $actual);
+    }
+
+    /** @test */
+    public function checkNoQuotes(): void
+    {
+        $actual = $this->environment->checkQuotes('test#123');
+
+        self::assertEquals(false, $actual);
+    }
+
+    /** @test */
+    public function splitLines(): void
+    {
+        $actual = $this->environment->splitLines($this->data);
+
+        self::assertEquals(array_filter(explode("\n", $this->data)), $actual);
+    }
+
+    /** @test */
+    public function splitVariables(): void
+    {
+        $actual = $this->environment->splitVariables('APP_NAME=Laravel');
+
+        self::assertEquals(explode('=', 'APP_NAME=Laravel', 2), $actual);
+    }
+
+    /** @test */
+    public function splitVariables1(): void
+    {
+        $actual = $this->environment->splitVariables('APP_NAME=');
     }
 }
