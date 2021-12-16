@@ -3,7 +3,9 @@
 namespace App;
 
 use App\Models\Entry;
+use Facade\FlareClient\Http\Exceptions\NotFound;
 use Illuminate\Support\Collection;
+use RuntimeException;
 use Throwable;
 
 class Environment
@@ -20,9 +22,11 @@ class Environment
         $project_defaults = $this->getEntries();
         $project_entries = $this->getEntries($branch);
 
-        $project_entries = $this->castTypes($project_defaults->replace($project_entries));
+        if ($project_entries->isEmpty()) {
+            throw new NotFound();
+        }
 
-        //dd($project_entries->toArray());
+        $project_entries = $this->castTypes($project_defaults->replace($project_entries));
 
         if ($is_ajax) {
             return $project_entries->toJson();
@@ -31,12 +35,15 @@ class Environment
         $response = null;
 
         foreach ($project_entries->toArray() as $key => $value) {
-            $response .= $key . '=' . json_encode($value, JSON_THROW_ON_ERROR) . "\n";
+            $response .= $key . '=' . str_replace('\\', '', json_encode($value, JSON_THROW_ON_ERROR)) . "\n";
         }
 
         return $response;
     }
 
+    /**
+     * @throws Throwable
+     */
     public function save(string $text, string $project, string $branch): void
     {
         $this->project = $project;
@@ -91,14 +98,19 @@ class Environment
         });
     }
 
+    /**
+     * @throws Throwable
+     */
     public function insertGiven(array $strings, string $branch): void
     {
         foreach ($strings as $string) {
-            $variables = $this->splitVariables($string);
+            if ($var = $this->splitVariables($string)) {
+                $variables = $var;
+            } else {
+                throw new RuntimeException('Line is invalid');
+            }
 
             if ($var = $this->checkQuotes($variables[1])) {
-                $variables[1] = $var;
-            } else if ($var = $this->checkComment($variables[1])) {
                 $variables[1] = $var;
             }
 
@@ -136,6 +148,21 @@ class Environment
 
     public function splitVariables(string $line)
     {
+        if ($var = $this->checkComment($line)) {
+            if (!str_contains($var[0], '=')) {
+                return false;
+            }
+
+            $return = explode('=', $var[0], 2);
+            $return[1] .= $var[1];
+
+            return $return;
+        }
+
+        if (!str_contains($line, '=')) {
+            return false;
+        }
+
         return explode('=', $line, 2);
     }
 }

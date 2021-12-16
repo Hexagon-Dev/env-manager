@@ -2,7 +2,10 @@
 
 namespace App\Exceptions;
 
+use Facade\FlareClient\Http\Exceptions\NotFound;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -32,10 +35,17 @@ class Handler extends ExceptionHandler
      *
      * @return void
      */
-    public function register()
+    public function register(): void
     {
-        $this->reportable(function (Throwable $e) {
-            //
+        $this->renderable(function (RuntimeException $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        });
+        $this->renderable(function (NotFound $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], Response::HTTP_NOT_FOUND);
         });
     }
 }
