@@ -43,7 +43,7 @@ class EnvTest extends TestCase
     /** @test */
     public function saveEnv(): void
     {
-        $this->post('/api/test/master', ['values' => trim($this->data, '"')]);
+        $this->post('/api/test/master', ['values' => $this->data]);
 
         $values = Entry::query()
             ->where('project', 'test')
@@ -84,19 +84,29 @@ class EnvTest extends TestCase
             ->where('branch', 'master')
             ->delete();
 
-        $strings = explode("\n", $data);
-
-        $test = null;
+        $strings = $this->environment->splitLines($data);
+        $test = [];
 
         foreach ($strings as $string) {
-            if ($string !== '') {
-                $variables = explode("=", $string, 2);
-
-                $test[] = [$variables[0] => $variables[1]];
+            $variables = $this->environment->splitVariables($string);
+            if ($var = $this->environment->checkQuotes($variables[1])) {
+                $variables[1] = $var;
+            } else if ($var = $this->environment->checkComment($variables[1])) {
+                $variables[1] = $var;
             }
+
+            $test[trim($variables[0])] = str_replace('\\', '', trim($variables[1]));
         }
 
-        self::assertEquals($test, $this->modified_data);
+        $data = [];
+
+        foreach ($this->modified_data as $var) {
+            $key = key($var);
+
+            $data[$key] = $var[$key];
+        }
+
+        self::assertEquals($test, $data);
     }
 
     /** @test */
@@ -161,11 +171,5 @@ class EnvTest extends TestCase
         $actual = $this->environment->splitVariables('APP_NAME=Laravel');
 
         self::assertEquals(explode('=', 'APP_NAME=Laravel', 2), $actual);
-    }
-
-    /** @test */
-    public function splitVariables1(): void
-    {
-        $actual = $this->environment->splitVariables('APP_NAME=');
     }
 }

@@ -20,11 +20,15 @@ class EnvironmentController extends Controller
         return $this->environment->show($request->ajax(), $project, $branch);
     }
 
-    public function save(Request $request, string $project, string $branch)
+    public function save(Request $request, string $project, string $branch): Response
     {
+        /*
         if (!$request->ajax()) {
             return response()->json(['error' => 'access denied'], Response::HTTP_FORBIDDEN);
         }
-        $this->environment->save($request->get('values'), $project, $branch);;
+        */
+        $this->environment->save($request->get('values'), $project, $branch);
+
+        return response()->json(['message' => 'successfully saved'], Response::HTTP_OK);
     }
 }

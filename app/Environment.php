@@ -4,15 +4,25 @@ namespace App;
 
 use App\Models\Entry;
 use Illuminate\Support\Collection;
+use Throwable;
 
 class Environment
 {
+    public string $project;
+
+    /**
+     * @throws Throwable
+     */
     public function show(bool $is_ajax, string $project, string $branch): ?string
     {
-        $project_defaults = $this->getEntries($project);
-        $project_entries = $this->getEntries($project, $branch);
+        $this->project = $project;
+
+        $project_defaults = $this->getEntries();
+        $project_entries = $this->getEntries($branch);
 
         $project_entries = $this->castTypes($project_defaults->replace($project_entries));
+
+        //dd($project_entries->toArray());
 
         if ($is_ajax) {
             return $project_entries->toJson();
@@ -21,7 +31,7 @@ class Environment
         $response = null;
 
         foreach ($project_entries->toArray() as $key => $value) {
-            $response .= $key . '=' . $value . "\n";
+            $response .= $key . '=' . json_encode($value, JSON_THROW_ON_ERROR) . "\n";
         }
 
         return $response;
@@ -29,15 +39,17 @@ class Environment
 
     public function save(string $text, string $project, string $branch): void
     {
+        $this->project = $project;
+
         $strings = $this->splitLines($text);
-        $this->insertGiven($strings, $project, $branch);
+        $this->insertGiven($strings, $branch);
     }
 
-    public function getEntries(string $project = 'default', string $branch = 'default'): Collection
+    public function getEntries(string $branch = 'default'): Collection
     {
         return $this->makePaired(
             Entry::query()
-                ->where('project', $project)
+                ->where('project', $this->project)
                 ->where('branch', $branch)
                 ->get()
                 ->collect()
@@ -48,6 +60,9 @@ class Environment
     {
         $result = [];
         $pairs->each(function($item) use (&$result) {
+            if (is_array($item)) {
+                $item = (object) $item;
+            }
             $result[$item->key] = $item->value;
         });
         return collect($result);
@@ -56,7 +71,6 @@ class Environment
     public function castTypes(Collection $collection) : Collection
     {
         return $collection->map(function ($value) {
-
             if ($value === '') {
                 return $value;
             }
@@ -65,19 +79,19 @@ class Environment
                 return null;
             }
 
-            if (is_numeric($value)) {
-                return filter_var($value, FILTER_VALIDATE_INT);
-            }
-
             if (!is_null(filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE))) {
                 return filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+            }
+
+            if (is_numeric($value)) {
+                return filter_var($value, FILTER_VALIDATE_INT);
             }
 
             return $value;
         });
     }
 
-    public function insertGiven(array $strings, string $project, string $branch): void
+    public function insertGiven(array $strings, string $branch): void
     {
         foreach ($strings as $string) {
             $variables = $this->splitVariables($string);
@@ -91,7 +105,7 @@ class Environment
             Entry::query()->insert([
                 'key' => trim($variables[0]),
                 'value' => trim($variables[1]),
-                'project' => $project,
+                'project' => $this->project,
                 'branch' => $branch,
             ]);
         }
